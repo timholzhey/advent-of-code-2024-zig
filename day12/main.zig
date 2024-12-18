@@ -1,71 +1,17 @@
 const std = @import("std");
+const Vec2D = @import("common").vectors.Vec2D;
+const Direction = @import("common").compass.Direction;
 
-const Direction = enum {
-    Up,
-    Down,
-    Left,
-    Right,
-
-    const directions = [_]Direction{ .Up, .Down, .Left, .Right };
-
-    fn rotateClockwise(self: Direction) Direction {
-        return switch (self) {
-            .Up => Direction.Right,
-            .Down => Direction.Left,
-            .Left => Direction.Up,
-            .Right => Direction.Down,
-        };
-    }
-
-    fn rotateAntiClockwise(self: Direction) Direction {
-        return switch (self) {
-            .Up => Direction.Left,
-            .Down => Direction.Right,
-            .Left => Direction.Down,
-            .Right => Direction.Up,
-        };
-    }
-};
-
-const Position = struct {
-    y: i32,
-    x: i32,
-
-    fn fromIndex(index: usize, width: usize) Position {
-        return .{
-            .y = @intCast(index / width),
-            .x = @intCast(index % width),
-        };
-    }
-
-    fn toIndex(self: Position, width: usize) usize {
-        return @intCast(self.y * @as(i32, @intCast(width)) + self.x);
-    }
-
-    fn isInside(self: Position, width: usize, height: usize) bool {
-        return self.y >= 0 and self.x >= 0 and self.y < height and self.x < width;
-    }
-
-    fn moveDirection(self: Position, direction: Direction) Position {
-        return switch (direction) {
-            .Up => .{ .y = self.y - 1, .x = self.x },
-            .Down => .{ .y = self.y + 1, .x = self.x },
-            .Left => .{ .y = self.y, .x = self.x - 1 },
-            .Right => .{ .y = self.y, .x = self.x + 1 },
-        };
-    }
-};
-
-fn floodFillRegionAccumRecurse(input: []const u8, grid_width: usize, grid_height: usize, pos: Position, visited_positions: *[]bool, value: u8) !struct {
+fn floodFillRegionAccumRecurse(input: []const u8, dimensions: Vec2D(i32), pos: Vec2D(i32), visited_positions: *[]bool, value: u8) !struct {
     area: u64,
     perimeter: u64,
     num_sides: u64,
 } {
-    if (!pos.isInside(grid_width, grid_height)) {
+    if (!pos.isWithinZeroRect(dimensions)) {
         return error.NotPartOfRegion;
     }
 
-    const index = pos.toIndex(grid_width + 1);
+    const index = pos.to2DIndex(@intCast(dimensions.x + 1));
     if (input[index] != value) {
         return error.NotPartOfRegion;
     }
@@ -80,16 +26,18 @@ fn floodFillRegionAccumRecurse(input: []const u8, grid_width: usize, grid_height
     var perimeter: u64 = 0;
     var num_sides: u64 = 0;
 
-    for (Direction.directions) |direction| {
-        const neighbor_pos = pos.moveDirection(direction);
-        const clockwise_next_pos = pos.moveDirection(direction.rotateClockwise());
-        const clockwise_forward_pos = neighbor_pos.moveDirection(direction.rotateClockwise());
+    for (Direction.cardinals) |direction| {
+        const neighbor_pos = pos.add(direction.toNormVec2D(i32));
 
-        const neighbor = floodFillRegionAccumRecurse(input, grid_width, grid_height, neighbor_pos, visited_positions, value) catch {
+        const direction_right = direction.rotate(.clockwise, .quarter);
+        const clockwise_next_pos = pos.add(direction_right.toNormVec2D(i32));
+        const clockwise_forward_pos = neighbor_pos.add(direction_right.toNormVec2D(i32));
+
+        const neighbor = floodFillRegionAccumRecurse(input, dimensions, neighbor_pos, visited_positions, value) catch {
             perimeter += 1;
 
             // Outer corner -> Add side
-            if (!clockwise_next_pos.isInside(grid_width, grid_height) or input[clockwise_next_pos.toIndex(grid_width + 1)] != value) {
+            if (!clockwise_next_pos.isWithinZeroRect(dimensions) or input[clockwise_next_pos.to2DIndex(@intCast(dimensions.x + 1))] != value) {
                 num_sides += 1;
             }
 
@@ -97,8 +45,8 @@ fn floodFillRegionAccumRecurse(input: []const u8, grid_width: usize, grid_height
         };
 
         // Inner corner -> Add side
-        if ((clockwise_next_pos.isInside(grid_width, grid_height) and input[clockwise_next_pos.toIndex(grid_width + 1)] == value) and
-            (!clockwise_forward_pos.isInside(grid_width, grid_height) or input[clockwise_forward_pos.toIndex(grid_width + 1)] != value))
+        if ((clockwise_next_pos.isWithinZeroRect(dimensions) and input[clockwise_next_pos.to2DIndex(@intCast(dimensions.x + 1))] == value) and
+            (!clockwise_forward_pos.isWithinZeroRect(dimensions) or input[clockwise_forward_pos.to2DIndex(@intCast(dimensions.x + 1))] != value))
         {
             num_sides += 1;
         }
@@ -117,8 +65,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 } {
     const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
 
-    const grid_width = std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable;
-    const grid_height = std.mem.count(u8, input_trimmed, "\n") + 1;
+    const dimensions = Vec2D(i32){
+        .x = @intCast(std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable),
+        .y = @intCast(std.mem.count(u8, input_trimmed, "\n") + 1),
+    };
 
     var visited_positions = try allocator.alloc(bool, input_trimmed.len);
     defer allocator.free(visited_positions);
@@ -136,8 +86,8 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                 continue;
             }
 
-            const pos = Position.fromIndex(index, grid_width + 1);
-            const region = floodFillRegionAccumRecurse(input_trimmed, grid_width, grid_height, pos, &visited_positions, char) catch unreachable;
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
+            const region = floodFillRegionAccumRecurse(input_trimmed, dimensions, pos, &visited_positions, char) catch unreachable;
 
             total_fence_price_perimeter += region.area * region.perimeter;
             total_fence_price_sides += region.area * region.num_sides;

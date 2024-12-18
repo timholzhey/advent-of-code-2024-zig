@@ -1,9 +1,6 @@
 const std = @import("std");
-
-const Pos = struct {
-    x: i32,
-    y: i32,
-};
+const Vec2D = @import("common").vectors.Vec2D;
+const Direction = @import("common").compass.Direction;
 
 const PosVisit = packed struct {
     up: bool,
@@ -12,29 +9,26 @@ const PosVisit = packed struct {
     right: bool,
 };
 
-fn moveGuardStep(grid: []u8, grid_width: usize, grid_height: usize, guard_index: usize) !usize {
+fn moveGuardStep(grid: []u8, dimensions: Vec2D(i32), pos: Vec2D(i32)) !usize {
     while (true) {
+        const guard_index = pos.to2DIndex(@intCast(dimensions.x + 1));
         const guard_val = grid[guard_index];
-        const guard_pos: Pos = .{
-            .x = @intCast(guard_index % (grid_width + 1)),
-            .y = @intCast(guard_index / (grid_width + 1)),
-        };
 
-        const guard_new_pos: Pos = switch (guard_val) {
-            '^' => .{ .x = guard_pos.x, .y = guard_pos.y - 1 },
-            'v' => .{ .x = guard_pos.x, .y = guard_pos.y + 1 },
-            '<' => .{ .x = guard_pos.x - 1, .y = guard_pos.y },
-            '>' => .{ .x = guard_pos.x + 1, .y = guard_pos.y },
+        const guard_new_pos: Vec2D(i32) = switch (guard_val) {
+            '^' => pos.add(Direction.north.toNormVec2D(i32)),
+            'v' => pos.add(Direction.south.toNormVec2D(i32)),
+            '<' => pos.add(Direction.west.toNormVec2D(i32)),
+            '>' => pos.add(Direction.east.toNormVec2D(i32)),
             else => unreachable,
         };
 
-        // Check still in grid
-        if (guard_new_pos.x < 0 or guard_new_pos.x >= grid_width or guard_new_pos.y < 0 or guard_new_pos.y >= grid_height) {
+        if (!guard_new_pos.isWithinZeroRect(dimensions)) {
             return error.OutOfBounds;
         }
 
         // Check obstacle at new position, rotate guard 90 degrees right, start over
-        if (grid[@intCast(guard_new_pos.y * @as(i32, @intCast(grid_width + 1)) + guard_new_pos.x)] == '#') {
+        const guard_new_index = guard_new_pos.to2DIndex(@intCast(dimensions.x + 1));
+        if (grid[guard_new_index] == '#') {
             grid[guard_index] = switch (guard_val) {
                 '^' => '>',
                 'v' => '<',
@@ -44,8 +38,6 @@ fn moveGuardStep(grid: []u8, grid_width: usize, grid_height: usize, guard_index:
             };
             continue;
         }
-
-        const guard_new_index: usize = @intCast(guard_new_pos.y * @as(i32, @intCast(grid_width + 1)) + guard_new_pos.x);
 
         // Move guard
         grid[guard_new_index] = guard_val;
@@ -61,8 +53,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 } {
     const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
 
-    const grid_width = std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable;
-    const grid_height = std.mem.count(u8, input_trimmed, "\n") + 1;
+    const dimensions = Vec2D(i32){
+        .x = @intCast(std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable),
+        .y = @intCast(std.mem.count(u8, input_trimmed, "\n") + 1),
+    };
 
     // Part 1
     var num_distinct_pos_visited: u64 = 0;
@@ -77,7 +71,8 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
         var guard_index = std.mem.indexOfAny(u8, grid, "^v<>") orelse unreachable;
 
         while (true) {
-            guard_index = moveGuardStep(grid, grid_width, grid_height, guard_index) catch break;
+            const guard_pos = Vec2D(i32).from2DIndex(guard_index, @intCast(dimensions.x + 1));
+            guard_index = moveGuardStep(grid, dimensions, guard_pos) catch break;
 
             if (!positions_visited[guard_index]) {
                 num_distinct_pos_visited += 1;
@@ -114,7 +109,8 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
             grid[obstruction_index] = '#';
 
             blk: while (true) {
-                guard_index = moveGuardStep(grid, grid_width, grid_height, guard_index) catch break;
+                const guard_pos = Vec2D(i32).from2DIndex(guard_index, @intCast(dimensions.x + 1));
+                guard_index = moveGuardStep(grid, dimensions, guard_pos) catch break;
 
                 switch (grid[guard_index]) {
                     '^' => {

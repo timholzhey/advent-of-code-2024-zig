@@ -1,17 +1,6 @@
 const std = @import("std");
-
-inline fn gridGetCharAtPos(grid: []const u8, width: usize, x: i32, y: i32) !u8 {
-    if (x < 0 or x >= width or y < 0) {
-        return error.OutOfBounds;
-    }
-
-    const index: usize = @intCast(y * (@as(i32, @intCast(width)) + 1) + x);
-    if (index >= grid.len) {
-        return error.OutOfBounds;
-    }
-
-    return grid[index];
-}
+const Vec2D = @import("common").vectors.Vec2D;
+const Direction = @import("common").compass.Direction;
 
 fn solve(_: std.mem.Allocator, input: []const u8) !struct {
     num_xmas_occurences: u64,
@@ -19,7 +8,10 @@ fn solve(_: std.mem.Allocator, input: []const u8) !struct {
 } {
     const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
 
-    const grid_width = std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable;
+    const dimensions = Vec2D(i32){
+        .x = @intCast(std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable),
+        .y = @intCast(std.mem.count(u8, input_trimmed, "\n") + 1),
+    };
 
     // Part 1
     var num_xmas_occurences: u32 = 0;
@@ -29,39 +21,29 @@ fn solve(_: std.mem.Allocator, input: []const u8) !struct {
                 continue;
             }
 
-            const row = index / (grid_width + 1);
-            const col = index % (grid_width + 1);
-
             // Check all 8 directions
-            for ([_]i32{ -1, 0, 1 }) |dx| {
-                for ([_]i32{ -1, 0, 1 }) |dy| {
-                    if (dx == 0 and dy == 0) {
-                        continue;
+            for (Direction.cardinals_ordinals) |direction| {
+                var pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
+
+                const rem_chars = "MAS";
+                var found = true;
+                for (rem_chars) |rem_char| {
+                    pos = pos.add(direction.toNormVec2D(i32));
+
+                    if (!pos.isWithinZeroRect(dimensions)) {
+                        found = false;
+                        break;
                     }
 
-                    var x: i32 = @intCast(col);
-                    var y: i32 = @intCast(row);
-
-                    const rem_chars = "MAS";
-                    var found = true;
-                    for (rem_chars) |rem_char| {
-                        x += dx;
-                        y += dy;
-
-                        const next_char = gridGetCharAtPos(input_trimmed, grid_width, x, y) catch {
-                            found = false;
-                            break;
-                        };
-
-                        if (next_char != rem_char) {
-                            found = false;
-                            break;
-                        }
+                    const next_char = input_trimmed[pos.to2DIndex(@intCast(dimensions.x + 1))];
+                    if (next_char != rem_char) {
+                        found = false;
+                        break;
                     }
+                }
 
-                    if (found) {
-                        num_xmas_occurences += 1;
-                    }
+                if (found) {
+                    num_xmas_occurences += 1;
                 }
             }
         }
@@ -75,23 +57,21 @@ fn solve(_: std.mem.Allocator, input: []const u8) !struct {
                 continue;
             }
 
-            const row = index / (grid_width + 1);
-            const col = index % (grid_width + 1);
-
             // Check diagonals
             var found = true;
-            for ([_]i32{ -1, 1 }) |dir| {
-                const x: i32 = @intCast(col);
-                const y: i32 = @intCast(row);
+            for ([_]Direction{ .north_east, .south_east }) |direction| {
+                const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
 
-                const char1 = gridGetCharAtPos(input_trimmed, grid_width, x - 1, y - dir) catch {
+                const diagonal_pos1 = pos.add(direction.toNormVec2D(i32));
+                const diagonal_pos2 = pos.add(direction.opposite().toNormVec2D(i32));
+
+                if (!diagonal_pos1.isWithinZeroRect(dimensions) or !diagonal_pos2.isWithinZeroRect(dimensions)) {
                     found = false;
                     break;
-                };
-                const char2 = gridGetCharAtPos(input_trimmed, grid_width, x + 1, y + dir) catch {
-                    found = false;
-                    break;
-                };
+                }
+
+                const char1 = input_trimmed[diagonal_pos1.to2DIndex(@intCast(dimensions.x + 1))];
+                const char2 = input_trimmed[diagonal_pos2.to2DIndex(@intCast(dimensions.x + 1))];
 
                 if (!((char1 == 'M' and char2 == 'S') or (char1 == 'S' and char2 == 'M'))) {
                     found = false;

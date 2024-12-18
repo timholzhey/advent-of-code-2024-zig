@@ -1,60 +1,5 @@
 const std = @import("std");
-
-fn Vec2(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        x: T,
-        y: T,
-
-        fn fromIndex(index: usize, width: usize) Self {
-            return .{
-                .x = @intCast(index % width),
-                .y = @intCast(index / width),
-            };
-        }
-
-        fn toIndex(self: *const Self, width: usize) usize {
-            return @intCast(self.y * @as(T, @intCast(width)) + self.x);
-        }
-
-        fn norm(self: *const Self) Self {
-            const gcd = std.math.gcd(@abs(self.x), @abs(self.y));
-            return .{
-                .x = @divTrunc(self.x, @as(T, @intCast(gcd))),
-                .y = @divTrunc(self.y, @as(T, @intCast(gcd))),
-            };
-        }
-
-        fn eql(self: *const Self, other: Self) bool {
-            return self.x == other.x and self.y == other.y;
-        }
-
-        fn add(self: *const Self, other: Self) Self {
-            return .{
-                .x = self.x + other.x,
-                .y = self.y + other.y,
-            };
-        }
-
-        fn sub(self: *const Self, other: Self) Self {
-            return .{
-                .x = self.x - other.x,
-                .y = self.y - other.y,
-            };
-        }
-
-        fn magSq(self: *const Self) T {
-            return self.x * self.x + self.y * self.y;
-        }
-
-        fn mulScalar(self: *const Self, scalar: T) Self {
-            return .{
-                .x = self.x * scalar,
-                .y = self.y * scalar,
-            };
-        }
-    };
-}
+const Vec2D = @import("common").vectors.Vec2D;
 
 fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
     num_unique_antinodes_two: u64,
@@ -62,10 +7,12 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 } {
     const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
 
-    const grid_width = std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable;
-    const grid_height = std.mem.count(u8, input_trimmed, "\n") + 1;
+    const dimensions = Vec2D(i32){
+        .x = @intCast(std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable),
+        .y = @intCast(std.mem.count(u8, input_trimmed, "\n") + 1),
+    };
 
-    var antennas_freq_map = std.AutoHashMap(u8, std.ArrayList(Vec2(i32))).init(allocator);
+    var antennas_freq_map = std.AutoHashMap(u8, std.ArrayList(Vec2D(i32))).init(allocator);
     defer {
         var freq_iter = antennas_freq_map.iterator();
         while (freq_iter.next()) |freq| {
@@ -76,10 +23,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 
     for (input_trimmed, 0..) |char, index| {
         if (std.ascii.isAlphanumeric(char)) {
-            const pos = Vec2(i32).fromIndex(index, grid_width + 1);
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
 
             var freq = antennas_freq_map.getPtr(char) orelse blk: {
-                const new_array_list = std.ArrayList(Vec2(i32)).init(allocator);
+                const new_array_list = std.ArrayList(Vec2D(i32)).init(allocator);
                 try antennas_freq_map.put(char, new_array_list);
                 break :blk antennas_freq_map.getPtr(char) orelse unreachable;
             };
@@ -98,7 +45,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
         blk: for (input_trimmed, 0..) |char, index| {
             if (char == '\n') continue;
 
-            const pos = Vec2(i32).fromIndex(index, grid_width + 1);
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
 
             var freq_iter = antennas_freq_map.iterator();
             while (freq_iter.next()) |freq| {
@@ -111,13 +58,11 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 
                     const second_antenna_pos = antenna_pos.add(delta);
 
-                    if (second_antenna_pos.x < 0 or second_antenna_pos.x >= grid_width or
-                        second_antenna_pos.y < 0 or second_antenna_pos.y >= grid_height)
-                    {
+                    if (!second_antenna_pos.isWithinZeroRect(dimensions)) {
                         continue;
                     }
 
-                    const second_antenna_index: usize = second_antenna_pos.toIndex(grid_width + 1);
+                    const second_antenna_index: usize = second_antenna_pos.to2DIndex(@intCast(dimensions.x + 1));
 
                     if (input_trimmed[second_antenna_index] == freq.key_ptr.*) {
                         if (!is_antinode_grid[index]) {
@@ -141,7 +86,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
         blk: for (input_trimmed, 0..) |char, index| {
             if (char == '\n') continue;
 
-            const pos = Vec2(i32).fromIndex(index, grid_width + 1);
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
 
             var freq_iter = antennas_freq_map.iterator();
             while (freq_iter.next()) |freq| {
@@ -159,17 +104,15 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                         while (true) {
                             next_antenna_pos = delta.norm().mulScalar(direction).add(next_antenna_pos);
 
-                            if (next_antenna_pos.eql(antenna_pos)) {
+                            if (next_antenna_pos.equals(antenna_pos)) {
                                 break;
                             }
 
-                            if (next_antenna_pos.x < 0 or next_antenna_pos.x >= grid_width or
-                                next_antenna_pos.y < 0 or next_antenna_pos.y >= grid_height)
-                            {
+                            if (!next_antenna_pos.isWithinZeroRect(dimensions)) {
                                 break;
                             }
 
-                            const next_antenna_index: usize = next_antenna_pos.toIndex(grid_width + 1);
+                            const next_antenna_index: usize = next_antenna_pos.to2DIndex(@intCast(dimensions.x + 1));
 
                             if (input_trimmed[next_antenna_index] != freq.key_ptr.*) {
                                 continue;

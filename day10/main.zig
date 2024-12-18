@@ -1,11 +1,13 @@
 const std = @import("std");
+const Vec2D = @import("common").vectors.Vec2D;
+const Direction = @import("common").compass.Direction;
 
-fn scoreTrailheadRecurse(input: []const u8, visited_positions: *[]bool, grid_width: usize, grid_height: usize, row: i32, col: i32, level: u32, distinct: bool) u32 {
-    if (row < 0 or row >= grid_height or col < 0 or col >= grid_width) {
+fn scoreTrailheadRecurse(input: []const u8, visited_positions: *[]bool, dimensions: Vec2D(i32), pos: Vec2D(i32), level: u32, distinct: bool) u32 {
+    if (!pos.isWithinZeroRect(dimensions)) {
         return 0;
     }
 
-    const index: usize = @intCast(row * (@as(i32, @intCast(grid_width)) + 1) + col);
+    const index = pos.to2DIndex(@intCast(dimensions.x + 1));
     if ((std.fmt.parseInt(u64, input[index .. index + 1], 10) catch unreachable) != level) {
         return 0;
     }
@@ -20,10 +22,9 @@ fn scoreTrailheadRecurse(input: []const u8, visited_positions: *[]bool, grid_wid
     }
 
     var score: u32 = 0;
-    score += scoreTrailheadRecurse(input, visited_positions, grid_width, grid_height, row - 1, col, level - 1, distinct);
-    score += scoreTrailheadRecurse(input, visited_positions, grid_width, grid_height, row + 1, col, level - 1, distinct);
-    score += scoreTrailheadRecurse(input, visited_positions, grid_width, grid_height, row, col - 1, level - 1, distinct);
-    score += scoreTrailheadRecurse(input, visited_positions, grid_width, grid_height, row, col + 1, level - 1, distinct);
+    for (Direction.cardinals) |direction| {
+        score += scoreTrailheadRecurse(input, visited_positions, dimensions, pos.add(direction.toNormVec2D(i32)), level - 1, distinct);
+    }
 
     visited_positions.*[index] = true;
 
@@ -36,8 +37,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 } {
     const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
 
-    const grid_width = std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable;
-    const grid_height = std.mem.count(u8, input_trimmed, "\n") + 1;
+    const dimensions = Vec2D(i32){
+        .x = @intCast(std.mem.indexOfScalar(u8, input_trimmed, '\n') orelse unreachable),
+        .y = @intCast(std.mem.count(u8, input_trimmed, "\n") + 1),
+    };
 
     // Part 1
     var sum_trailhead_scores: u64 = 0;
@@ -45,19 +48,15 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
         var visited_positions = try allocator.alloc(bool, input_trimmed.len);
         defer allocator.free(visited_positions);
 
-        for (0..input_trimmed.len) |index| {
-            const char = input_trimmed[index];
-
+        for (input_trimmed, 0..) |char, index| {
             if (char != '9') {
                 continue;
             }
 
-            const row: i32 = @intCast(index / (grid_width + 1));
-            const col: i32 = @intCast(index % (grid_width + 1));
-
             @memset(visited_positions, false);
 
-            sum_trailhead_scores += scoreTrailheadRecurse(input_trimmed, &visited_positions, grid_width, grid_height, row, col, 9, false);
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
+            sum_trailhead_scores += scoreTrailheadRecurse(input_trimmed, &visited_positions, dimensions, pos, 9, false);
         }
     }
 
@@ -67,19 +66,15 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
         var visited_positions = try allocator.alloc(bool, input_trimmed.len);
         defer allocator.free(visited_positions);
 
-        for (0..input_trimmed.len) |index| {
-            const char = input_trimmed[index];
-
+        for (input_trimmed, 0..) |char, index| {
             if (char != '9') {
                 continue;
             }
 
-            const row: i32 = @intCast(index / (grid_width + 1));
-            const col: i32 = @intCast(index % (grid_width + 1));
-
             @memset(visited_positions, false);
 
-            sum_trailhead_ratings += scoreTrailheadRecurse(input_trimmed, &visited_positions, grid_width, grid_height, row, col, 9, true);
+            const pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
+            sum_trailhead_ratings += scoreTrailheadRecurse(input_trimmed, &visited_positions, dimensions, pos, 9, true);
         }
     }
 

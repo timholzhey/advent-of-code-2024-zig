@@ -10,6 +10,10 @@ pub fn build(b: *std.Build) !void {
     const run_all = b.step("run_all", "Run all days");
     const test_all = b.step("test_all", "Test all days");
 
+    const common_module = b.addModule("common", .{
+        .root_source_file = b.path("common/module.zig"),
+    });
+
     for (0..25) |advent_day| {
         const day_str = try std.fmt.allocPrint(b.allocator, "day{:0>2}", .{advent_day});
         defer b.allocator.free(day_str);
@@ -26,6 +30,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
         });
+        exe.root_module.addImport("common", common_module);
 
         b.installArtifact(exe);
         build_all.dependOn(&exe.step);
@@ -50,6 +55,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
         });
+        exe_unit_tests.root_module.addImport("common", common_module);
 
         const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

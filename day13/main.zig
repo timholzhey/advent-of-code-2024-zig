@@ -1,24 +1,13 @@
 const std = @import("std");
-
-const Position = struct {
-    y: i64,
-    x: i64,
-
-    fn add(self: Position, other: Position) Position {
-        return .{
-            .y = self.y + other.y,
-            .x = self.x + other.x,
-        };
-    }
-};
+const Vec2D = @import("common").vectors.Vec2D;
 
 const ClawMachine = struct {
-    button_a: Position,
-    button_b: Position,
-    prize_location: Position,
+    button_a: Vec2D(i64),
+    button_b: Vec2D(i64),
+    prize_location: Vec2D(i64),
 };
 
-fn parsePositionFromInputLine(line: []const u8) !Position {
+fn parsePositionFromInputLine(line: []const u8) !Vec2D(i64) {
     const x_start = std.mem.indexOfScalar(u8, line, 'X').?;
     const x_end = std.mem.indexOfScalar(u8, line[x_start..], ',').?;
     const x_val = try std.fmt.parseInt(i64, line[x_start + 2 .. x_start + x_end], 10);
