@@ -1,24 +1,22 @@
 const std = @import("std");
 const Vec2D = @import("common").vectors.Vec2D;
 const Direction = @import("common").compass.Direction;
+const Array2D = @import("common").arrays.Array2D;
 
 fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
     sum_coordinates: u64,
     sum_coordinates_wide: u64,
 } {
-    const input_trimmed = std.mem.trim(u8, input, &std.ascii.whitespace);
-
-    const input_seperator = std.mem.indexOf(u8, input_trimmed, "\n\n").?;
-    const input_grid = input_trimmed[0..input_seperator];
+    const input_grid = try Array2D(u8).fromSliceDelim(allocator, input, "\n");
+    defer input_grid.deinit();
 
     var moves_list = std.ArrayList(Direction).init(allocator);
     defer moves_list.deinit();
 
-    for (input_trimmed[input_seperator..]) |char| {
+    for (input[std.mem.indexOfAny(u8, input, "<>^v").?..]) |char| {
         if (char == '\n') {
             continue;
         }
-
         try moves_list.append(switch (char) {
             '^' => .north,
             'v' => .south,
@@ -30,19 +28,14 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 
     var sum_coordinates: u64 = 0;
     {
-        var grid = try allocator.dupe(u8, input_grid);
-        defer allocator.free(grid);
+        var grid = try input_grid.clone();
+        defer grid.deinit();
 
-        const dimensions = Vec2D(i32){
-            .x = @intCast(std.mem.indexOfScalar(u8, grid, '\n') orelse unreachable),
-            .y = @intCast(std.mem.count(u8, grid, "\n") + 1),
-        };
-
-        var current_pos = Vec2D(i32).from2DIndex(std.mem.indexOfScalar(u8, grid, '@') orelse unreachable, @intCast(dimensions.x + 1));
+        var current_pos = grid.find('@').?.as(i32);
 
         for_moves: for (moves_list.items) |direction| {
             const next_pos = current_pos.add(direction.toNormVec2D(i32));
-            const next_val = grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))];
+            const next_val = grid.at(next_pos.as(usize));
 
             switch (next_val) {
                 '#' => continue,
@@ -51,13 +44,13 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                     traverse_boxes: while (true) {
                         box_pos = box_pos.add(direction.toNormVec2D(i32));
 
-                        switch (grid[box_pos.to2DIndex(@intCast(dimensions.x + 1))]) {
+                        switch (grid.at(box_pos.as(usize))) {
                             '#' => continue :for_moves,
                             'O' => {},
                             '.' => {
-                                grid[box_pos.to2DIndex(@intCast(dimensions.x + 1))] = 'O';
-                                grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))] = '@';
-                                grid[current_pos.to2DIndex(@intCast(dimensions.x + 1))] = '.';
+                                grid.set(current_pos.as(usize), '.');
+                                grid.set(next_pos.as(usize), '@');
+                                grid.set(box_pos.as(usize), 'O');
                                 break :traverse_boxes;
                             },
                             else => unreachable,
@@ -65,8 +58,8 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                     }
                 },
                 '.' => {
-                    grid[current_pos.to2DIndex(@intCast(dimensions.x + 1))] = '.';
-                    grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))] = '@';
+                    grid.set(current_pos.as(usize), '.');
+                    grid.set(next_pos.as(usize), '@');
                 },
                 else => unreachable,
             }
@@ -74,21 +67,21 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
             current_pos = next_pos;
         }
 
-        for (grid, 0..) |char, index| {
-            if (char == 'O') {
-                const box_pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
-                sum_coordinates += @intCast(box_pos.x + 100 * box_pos.y);
-            }
+        var grid_iter = grid.iterator();
+        while (grid_iter.next()) |elem| {
+            if (elem.value != 'O') continue;
+            sum_coordinates += @intCast(elem.position.x + 100 * elem.position.y);
         }
     }
 
     var sum_coordinates_wide: u64 = 0;
     {
-        var grid = try allocator.alloc(u8, 2 * input_grid.len);
-        defer allocator.free(grid);
+        var grid = try Array2D(u8).initSize(allocator, input_grid.dimensions.mulVec(.{ .x = 2, .y = 1 }));
+        defer grid.deinit();
 
-        for (input_grid, 0..) |char, index| {
-            @memcpy(grid[2 * index .. 2 * index + 2], switch (char) {
+        var input_grid_iter = input_grid.iterator();
+        while (input_grid_iter.next()) |elem| {
+            grid.setSlice(elem.position.mulVec(.{ .x = 2, .y = 1 }), switch (elem.value) {
                 '#' => "##",
                 'O' => "[]",
                 '.' => "..",
@@ -98,32 +91,28 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
             });
         }
 
-        const dimensions = Vec2D(i32){
-            .x = @intCast(std.mem.indexOfScalar(u8, grid, '\n') orelse unreachable),
-            .y = @intCast(std.mem.count(u8, grid, "\n") + 1),
-        };
-
         const Box = struct {
             pos: Vec2D(i32),
             is_start: bool,
         };
 
-        var current_pos = Vec2D(i32).from2DIndex(std.mem.indexOfScalar(u8, grid, '@') orelse unreachable, @intCast(dimensions.x + 1));
+        var current_pos = grid.find('@').?.as(i32);
         var boxes_stack = std.ArrayList(Box).init(allocator);
         defer boxes_stack.deinit();
 
         for_moves: for (moves_list.items) |direction| {
             const next_pos = current_pos.add(direction.toNormVec2D(i32));
-            const next_val = grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))];
+            const next_val = grid.at(next_pos.as(usize));
 
             switch (next_val) {
                 '#' => continue,
                 '[', ']' => {
+                    boxes_stack.clearRetainingCapacity();
+
                     var box_pos = next_pos;
                     if (next_val == ']') {
                         box_pos = box_pos.add(Direction.west.toNormVec2D(i32));
                     }
-                    boxes_stack.clearRetainingCapacity();
                     try boxes_stack.append(.{ .pos = box_pos, .is_start = true });
                     try boxes_stack.append(.{ .pos = box_pos.add(Direction.east.toNormVec2D(i32)), .is_start = false });
 
@@ -132,7 +121,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                         const box = boxes_stack.items[box_stack_index];
                         var next_pos_box = box.pos.add(direction.toNormVec2D(i32));
 
-                        const next_val_box = grid[next_pos_box.to2DIndex(@intCast(dimensions.x + 1))];
+                        const next_val_box = grid.at(next_pos_box.as(usize));
                         switch (next_val_box) {
                             '#' => continue :for_moves,
                             '[', ']' => {
@@ -154,18 +143,18 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
                         const index = boxes_stack.items.len - 1 - i;
                         const box = boxes_stack.items[index];
                         if (!box.is_start) continue;
-                        grid[box.pos.to2DIndex(@intCast(dimensions.x + 1))] = '.';
-                        grid[box.pos.to2DIndex(@intCast(dimensions.x + 1)) + 1] = '.';
-                        grid[box.pos.add(direction.toNormVec2D(i32)).to2DIndex(@intCast(dimensions.x + 1))] = '[';
-                        grid[box.pos.add(direction.toNormVec2D(i32)).to2DIndex(@intCast(dimensions.x + 1)) + 1] = ']';
+                        grid.set(box.pos.as(usize), '.');
+                        grid.set(box.pos.add(Direction.east.toNormVec2D(i32)).as(usize), '.');
+                        grid.set(box.pos.add(direction.toNormVec2D(i32)).as(usize), '[');
+                        grid.set(box.pos.add(direction.toNormVec2D(i32)).add(Direction.east.toNormVec2D(i32)).as(usize), ']');
                     }
 
-                    grid[current_pos.to2DIndex(@intCast(dimensions.x + 1))] = '.';
-                    grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))] = '@';
+                    grid.set(current_pos.as(usize), '.');
+                    grid.set(next_pos.as(usize), '@');
                 },
                 '.' => {
-                    grid[current_pos.to2DIndex(@intCast(dimensions.x + 1))] = '.';
-                    grid[next_pos.to2DIndex(@intCast(dimensions.x + 1))] = '@';
+                    grid.set(current_pos.as(usize), '.');
+                    grid.set(next_pos.as(usize), '@');
                 },
                 else => unreachable,
             }
@@ -173,10 +162,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
             current_pos = next_pos;
         }
 
-        for (grid, 0..) |char, index| {
-            if (char == '[') {
-                const box_pos = Vec2D(i32).from2DIndex(index, @intCast(dimensions.x + 1));
-                sum_coordinates_wide += @intCast(box_pos.x + 100 * box_pos.y);
+        var grid_iter = grid.iterator();
+        while (grid_iter.next()) |elem| {
+            if (elem.value == '[') {
+                sum_coordinates_wide += @intCast(elem.position.x + 100 * elem.position.y);
             }
         }
     }

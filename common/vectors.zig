@@ -89,5 +89,12 @@ pub fn Vec2D(comptime T: type) type {
         pub fn isWithinZeroRect(self: Self, max: Self) bool {
             return self.x >= 0 and self.y >= 0 and self.x < max.x and self.y < max.y;
         }
+
+        pub fn as(self: Self, comptime U: type) Vec2D(U) {
+            return .{
+                .x = @intCast(self.x),
+                .y = @intCast(self.y),
+            };
+        }
     };
 }
