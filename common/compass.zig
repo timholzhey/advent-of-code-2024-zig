@@ -34,6 +34,14 @@ pub const Direction = enum(i8) {
         return self.rotate(.clockwise, .half);
     }
 
+    pub fn isHorizontal(self: Direction) bool {
+        return self == .east or self == .west;
+    }
+
+    pub fn isVertical(self: Direction) bool {
+        return self == .north or self == .south;
+    }
+
     pub fn toNormVec2D(self: Direction, comptime T: type) Vec2D(T) {
         return switch (self) {
             .north => .{ .x = 0, .y = -1 },

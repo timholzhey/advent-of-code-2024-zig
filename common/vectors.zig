@@ -54,6 +54,13 @@ pub fn Vec2D(comptime T: type) type {
             };
         }
 
+        pub fn mulVec(self: Self, other: Self) Self {
+            return .{
+                .x = self.x * other.x,
+                .y = self.y * other.y,
+            };
+        }
+
         pub fn modVec(self: Self, modulus: Self) Self {
             return .{
                 .x = @mod(self.x, modulus.x),
