@@ -64,7 +64,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8, dimensions: Vec2D(i32)
         var robots_visited_map = std.AutoHashMap(Vec2D(i32), bool).init(allocator);
         defer robots_visited_map.deinit();
 
-        loop: for (0..10000) |iter| {
+        loop: for (0..10_000) |iter| {
             robots_visited_map.clearRetainingCapacity();
 
             for (robots.items) |*robot| {

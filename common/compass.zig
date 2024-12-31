@@ -1,3 +1,4 @@
+const std = @import("std");
 const Vec2D = @import("vectors.zig").Vec2D;
 
 pub const Direction = enum(i8) {
@@ -27,7 +28,11 @@ pub const Direction = enum(i8) {
     };
 
     pub fn rotate(self: Direction, direction: RotationDirection, step: RotationStep) Direction {
-        return cardinals_ordinals[@as(usize, @intCast((@intFromEnum(self) + @intFromEnum(direction) * @intFromEnum(step)))) % cardinals_ordinals.len];
+        return cardinals_ordinals[@as(usize, @intCast(@mod(@intFromEnum(self) + @intFromEnum(direction) * @intFromEnum(step), @as(i8, @intCast(cardinals_ordinals.len)))))];
+    }
+
+    pub fn rotateEither(self: Direction, step: RotationStep) [2]Direction {
+        return .{ self.rotate(.clockwise, step), self.rotate(.anti_clockwise, step) };
     }
 
     pub fn opposite(self: Direction) Direction {
@@ -55,3 +60,37 @@ pub const Direction = enum(i8) {
         };
     }
 };
+
+test "rotate" {
+    try std.testing.expectEqual(Direction.north_east, Direction.north.rotate(.clockwise, .eighth));
+    try std.testing.expectEqual(Direction.north_west, Direction.north.rotate(.anti_clockwise, .eighth));
+    try std.testing.expectEqual(Direction.east, Direction.north.rotate(.clockwise, .quarter));
+    try std.testing.expectEqual(Direction.west, Direction.north.rotate(.anti_clockwise, .quarter));
+    try std.testing.expectEqual(Direction.south, Direction.north.rotate(.clockwise, .half));
+    try std.testing.expectEqual(Direction.south, Direction.north.rotate(.anti_clockwise, .half));
+    try std.testing.expectEqual(Direction.west, Direction.north.rotate(.clockwise, .three_quarters));
+    try std.testing.expectEqual(Direction.east, Direction.north.rotate(.anti_clockwise, .three_quarters));
+    try std.testing.expectEqual(Direction.west, Direction.south_west.rotate(.clockwise, .eighth));
+    try std.testing.expectEqual(Direction.south, Direction.south_west.rotate(.anti_clockwise, .eighth));
+    try std.testing.expectEqual(Direction.north_west, Direction.south_west.rotate(.clockwise, .quarter));
+    try std.testing.expectEqual(Direction.south_east, Direction.south_west.rotate(.anti_clockwise, .quarter));
+    try std.testing.expectEqual(Direction.north_east, Direction.south_west.rotate(.clockwise, .half));
+    try std.testing.expectEqual(Direction.north_east, Direction.south_west.rotate(.anti_clockwise, .half));
+    try std.testing.expectEqual(Direction.south_east, Direction.south_west.rotate(.clockwise, .three_quarters));
+    try std.testing.expectEqual(Direction.north_west, Direction.south_west.rotate(.anti_clockwise, .three_quarters));
+}
+
+test "rotateEither" {
+    const northEitherEighth = Direction.north.rotateEither(.eighth);
+    try std.testing.expectEqual(Direction.north_east, northEitherEighth[0]);
+    try std.testing.expectEqual(Direction.north_west, northEitherEighth[1]);
+    const northEitherQuarter = Direction.north.rotateEither(.quarter);
+    try std.testing.expectEqual(Direction.east, northEitherQuarter[0]);
+    try std.testing.expectEqual(Direction.west, northEitherQuarter[1]);
+    const northEitherHalf = Direction.north.rotateEither(.half);
+    try std.testing.expectEqual(Direction.south, northEitherHalf[0]);
+    try std.testing.expectEqual(Direction.south, northEitherHalf[1]);
+    const northEitherThreeQuarters = Direction.north.rotateEither(.three_quarters);
+    try std.testing.expectEqual(Direction.west, northEitherThreeQuarters[0]);
+    try std.testing.expectEqual(Direction.east, northEitherThreeQuarters[1]);
+}

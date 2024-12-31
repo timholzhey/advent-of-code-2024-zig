@@ -96,5 +96,9 @@ pub fn Vec2D(comptime T: type) type {
                 .y = @intCast(self.y),
             };
         }
+
+        pub fn manhattan(self: Self, other: Self) T {
+            return @intCast(@abs(self.x - other.x) + @abs(self.y - other.y));
+        }
     };
 }

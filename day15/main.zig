@@ -76,7 +76,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
 
     var sum_coordinates_wide: u64 = 0;
     {
-        var grid = try Array2D(u8).initSize(allocator, input_grid.dimensions.mulVec(.{ .x = 2, .y = 1 }));
+        var grid = try Array2D(u8).init(allocator, input_grid.dimensions.mulVec(.{ .x = 2, .y = 1 }));
         defer grid.deinit();
 
         var input_grid_iter = input_grid.iterator();
@@ -182,8 +182,8 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     const solution = try solve(allocator, @embedFile("input.txt"));
-    std.debug.print("Day 14 - Part 1: {}\n", .{solution.sum_coordinates});
-    std.debug.print("Day 14 - Part 2: {}\n", .{solution.sum_coordinates_wide});
+    std.debug.print("Day 15 - Part 1: {}\n", .{solution.sum_coordinates});
+    std.debug.print("Day 15 - Part 2: {}\n", .{solution.sum_coordinates_wide});
 }
 
 test "sample" {

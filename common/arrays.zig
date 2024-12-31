@@ -1,5 +1,6 @@
 const std = @import("std");
 const Vec2D = @import("vectors.zig").Vec2D;
+const Direction = @import("compass.zig").Direction;
 
 pub fn Array2D(comptime T: type) type {
     return struct {
@@ -64,9 +65,67 @@ pub fn Array2D(comptime T: type) type {
             }
         };
 
-        /// Initializes an Array2D with the given dimensions, allocates memory for the elements.
+        pub const TraversalIterator = struct {
+            arr: *const Self,
+            position: ?Vec2D(usize),
+            start: Vec2D(usize),
+            end: Vec2D(usize),
+            directions: []const Direction,
+            path_condition: PathCondition,
+            lookback_pos: ?Vec2D(usize),
+
+            pub const PathCondition = *const fn (T, Vec2D(usize)) bool;
+
+            pub const Element = struct {
+                position: Vec2D(usize),
+                value: T,
+            };
+
+            pub fn next(it: *TraversalIterator) ?Element {
+                if (it.position == null) {
+                    it.position = it.start;
+                    return .{
+                        .position = it.start,
+                        .value = it.arr.at(it.start),
+                    };
+                }
+
+                for (it.directions) |direction| {
+                    const neighbor_pos = it.position.?.as(i32).add(direction.toNormVec2D(i32));
+                    if (!neighbor_pos.isWithinZeroRect(it.arr.dimensions.as(i32))) {
+                        continue;
+                    }
+
+                    const next_pos = neighbor_pos.as(usize);
+                    if (it.lookback_pos) |back_pos| {
+                        if (next_pos.equals(back_pos)) {
+                            continue;
+                        }
+                    }
+
+                    const value = it.arr.at(next_pos);
+                    if (!it.path_condition(value, next_pos)) {
+                        continue;
+                    }
+
+                    if (it.lookback_pos) |_| {
+                        it.lookback_pos = it.position.?;
+                    }
+                    it.position = next_pos;
+
+                    return .{
+                        .position = next_pos,
+                        .value = value,
+                    };
+                }
+
+                return null;
+            }
+        };
+
+        /// Initializes an Array2D with fixed dimensions, allocates memory for the elements.
         /// The elements are not initialized and must be set manually.
-        pub fn initSize(allocator: std.mem.Allocator, dimensions: Vec2D(usize)) std.mem.Allocator.Error!Self {
+        pub fn init(allocator: std.mem.Allocator, dimensions: Vec2D(usize)) std.mem.Allocator.Error!Self {
             var elements = try std.ArrayList(T).initCapacity(allocator, dimensions.x * dimensions.y);
             elements.expandToCapacity();
 
@@ -74,6 +133,13 @@ pub fn Array2D(comptime T: type) type {
                 .dimensions = dimensions,
                 .elements = elements,
             };
+        }
+
+        // Initializes an Array2D with fixed dimensions and fills it with a default value.
+        pub fn initDefault(allocator: std.mem.Allocator, dimensions: Vec2D(usize), fill_value: T) std.mem.Allocator.Error!Self {
+            var arr = try Self.init(allocator, dimensions);
+            arr.fill(fill_value);
+            return arr;
         }
 
         /// Initializes an Array2D from a slice of elements with rows separated by a delimiter slice.
@@ -109,6 +175,10 @@ pub fn Array2D(comptime T: type) type {
             };
         }
 
+        pub fn fill(self: Self, value: T) void {
+            @memset(self.elements.items, value);
+        }
+
         pub fn find(self: Self, element: T) ?Vec2D(usize) {
             const index = std.mem.indexOfScalar(T, self.elements.items, element);
             if (index) |idx| {
@@ -142,6 +212,18 @@ pub fn Array2D(comptime T: type) type {
             return .{
                 .arr = self,
                 .filter = filter_fn,
+            };
+        }
+
+        pub fn traverse(self: *const Self, start_pos: Vec2D(usize), end_pos: Vec2D(usize), directions: []const Direction, path_condition: TraversalIterator.PathCondition, lookback: bool) TraversalIterator {
+            return .{
+                .arr = self,
+                .position = null,
+                .start = start_pos,
+                .end = end_pos,
+                .directions = directions,
+                .path_condition = path_condition,
+                .lookback_pos = if (lookback) start_pos else null,
             };
         }
 

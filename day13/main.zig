@@ -58,7 +58,7 @@ fn solve(allocator: std.mem.Allocator, input: []const u8) !struct {
     // Part 2
     var num_tokens_win_all_prizes_10trillion: u64 = 0;
     for (claw_machines.items) |claw_machine| {
-        const prize_location = claw_machine.prize_location.add(.{ .x = 10000000000000, .y = 10000000000000 });
+        const prize_location = claw_machine.prize_location.add(.{ .x = 10_000_000_000_000, .y = 10_000_000_000_000 });
         const k = std.math.divExact(i64, prize_location.x * claw_machine.button_a.y - prize_location.y * claw_machine.button_a.x, claw_machine.button_b.x * claw_machine.button_a.y - claw_machine.button_a.x * claw_machine.button_b.y) catch continue;
         const n = std.math.divExact(i64, prize_location.x - k * claw_machine.button_b.x, claw_machine.button_a.x) catch continue;
         num_tokens_win_all_prizes_10trillion += @intCast(3 * n + k);
