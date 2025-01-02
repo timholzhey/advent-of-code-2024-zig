@@ -18,6 +18,13 @@ pub fn Vec2D(comptime T: type) type {
         }
 
         pub fn norm(self: Self) Self {
+            if (self.x == 0 and self.y != 0) {
+                return .{ .x = 0, .y = if (self.y > 0) 1 else -1 };
+            } else if (self.x != 0 and self.y == 0) {
+                return .{ .x = if (self.x > 0) 1 else -1, .y = 0 };
+            } else if (self.x == 0 and self.y == 0) {
+                return .{ .x = 0, .y = 0 };
+            }
             const gcd = std.math.gcd(@abs(self.x), @abs(self.y));
             return .{
                 .x = @divTrunc(self.x, @as(T, @intCast(gcd))),
@@ -97,7 +104,7 @@ pub fn Vec2D(comptime T: type) type {
             };
         }
 
-        pub fn manhattan(self: Self, other: Self) T {
+        pub fn manhattan(self: Self, other: Self) usize {
             return @intCast(@abs(self.x - other.x) + @abs(self.y - other.y));
         }
     };

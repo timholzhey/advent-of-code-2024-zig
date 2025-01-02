@@ -89,7 +89,6 @@ fn solve(allocator: std.mem.Allocator, input: []const u8, cheats_saved_time_thre
     const start_pos = grid.find('S').?.as(i32);
     const end_pos = grid.find('E').?.as(i32);
 
-    // Part 1
     var path_grid = try Array2D(u64).initDefault(allocator, grid.dimensions, std.math.maxInt(u64));
     defer path_grid.deinit();
 
@@ -103,7 +102,10 @@ fn solve(allocator: std.mem.Allocator, input: []const u8, cheats_saved_time_thre
         }
     }
 
+    // Part 1
     const num_cheats_save_time_2: u64 = try traverseGridCountCheats(allocator, grid, start_pos, end_pos, path_grid, 2, cheats_saved_time_threshold);
+
+    // Part 2
     const num_cheats_save_time_20: u64 = try traverseGridCountCheats(allocator, grid, start_pos, end_pos, path_grid, 20, cheats_saved_time_threshold);
 
     return .{

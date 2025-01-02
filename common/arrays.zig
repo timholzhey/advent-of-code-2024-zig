@@ -187,6 +187,10 @@ pub fn Array2D(comptime T: type) type {
             return null;
         }
 
+        pub fn contains(self: Self, element: T) bool {
+            return self.find(element) != null;
+        }
+
         pub fn at(self: Self, pos: Vec2D(usize)) T {
             return self.elements.items[pos.to2DIndex(self.dimensions.x)];
         }
